@@ -16,24 +16,44 @@
 
 import os
 
+# CfgNode represents an internal node in the configuration tree. It's a simple 
+# dict-like container that allows for attribute-based access to keys.
 from yacs.config import CfgNode as CN
 
+# new_allowed: Whether adding new key is allowed when merging with
+# other configs.
 _C = CN(new_allowed=True)
 
-# needed by trainer
+# Defines several parameters required by the trainer.
+
+# This is a name for the configuration or the experiment.
 _C.name = "default"
+# GPU 0 is selected for training, meaning the first available GPU.
 _C.gpus = [0]
+# GPU 1 is set for testing. This allows for separating the resources used during training and testing.
 _C.test_gpus = [1]
+# This sets the number of devices (usually GPUs) to be used. In this case, it's set to 1, meaning the training will use a single GPU.
 _C.devices = 1
+# Input data location.
 _C.root = "./data/"
+# Checkpoints typically save the parameters (weights and biases) of a model.
 _C.ckpt_dir = "./data/ckpt/"
+# This is the path to a saved checkpoint if the training is to be resumed from a previous state. By default, it's an empty string.
 _C.resume_path = ""
+# This is the path to a normal model (likely a model that estimates surface normals, which could be used for rendering or geometry tasks).
 _C.normal_path = ""
+# The path to the IFNet model (an implicit function network for reconstructing 3D models).
 _C.ifnet_path = ""
+# This defines the directory where results (such as rendered images or evaluation metrics) will be saved.
 _C.results_path = "./results/"
+# This specifies the projection mode used for rendering or 3D visualization. The default is orthogonal projection, meaning that objects are displayed without perspective distortion (all parallel lines remain parallel).
 _C.projection_mode = "orthogonal"
+# The system processes single-view images by default.
 _C.num_views = 1
+# This is a flag indicating whether to use Signed Distance Fields (SDF) during the modeling process. SDFs are often used to represent 3D surfaces implicitly. It's set to False, meaning SDFs are not used by default.
 _C.sdf = False
+# If SDFs are being used, this value determines the clipping threshold for the SDF values. In this case, the threshold is set to 5.0, 
+# meaning the SDF values will be clipped to a range between -5.0 and 5.0. This is useful for numerical stability or focusing on specific regions.
 _C.sdf_clip = 5.0
 
 _C.lr_netF = 1e-3

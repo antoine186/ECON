@@ -3,16 +3,14 @@ channels:
   - pytorch
   - nvidia
   - conda-forge
-  - fvcore
-  - iopath
-  - bottler
   - defaults
 dependencies:
-  - python=3.8
-  - pytorch-cuda=11.6
-  - pytorch=1.13.0
-  - nvidiacub
+  - python=3.10  # Updated to a more recent version
+  - pytorch=2.0
   - torchvision
+  - torchaudio
+  - cudatoolkit=11.8  # Keeping CUDA to 11.8 for compatibility
+  - pytorch-cuda=11.8
   - fvcore
   - iopath
   - pyembree

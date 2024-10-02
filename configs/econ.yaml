@@ -1,7 +1,11 @@
 name: econ
+# Path where the model's checkpoint files (pre-trained models) are stored.
 ckpt_dir: "./data/ckpt/"
+# Path to the checkpoint file for the normal map prediction model.
 normal_path: "./data/ckpt/normal.ckpt"
+# Path to the checkpoint file for the IF-Net model (used for shape completion).
 ifnet_path: "./data/ckpt/ifnet.ckpt"
+# Path where the results (output meshes, normal maps, etc.) will be saved.
 results_path: "./results"
 
 net:

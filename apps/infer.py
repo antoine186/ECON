@@ -47,26 +47,39 @@ from lib.common.voxelize import VoxelGrid
 from lib.dataset.mesh_util import *
 from lib.dataset.TestDataset import TestDataset
 from lib.net.geometry import rot6d_to_rotmat, rotation_matrix_to_angle_axis
+# import sys
 
 torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 if __name__ == "__main__":
+    # sys.path.append('./ECON')
+    os.chdir('./ECON')
 
     # loading cfg file
     parser = argparse.ArgumentParser()
 
+    # Allows user to specify a GPU device (default is device 0).
     parser.add_argument("-gpu", "--gpu_device", type=int, default=0)
+    # Defines the number of iterations to optimize SMPL-X during fitting (default is 50 iterations).
     parser.add_argument("-loop_smpl", "--loop_smpl", type=int, default=50)
+    # How many iterations to wait for improvement in performance before reducing the learning rate (default is 5).
     parser.add_argument("-patience", "--patience", type=int, default=5)
+    # Specifies the directory where the input images for processing are stored (default is ./examples).
     parser.add_argument("-in_dir", "--in_dir", type=str, default="./examples")
+    # Specifies the directory where results (images, meshes, etc.) will be saved (default is ./results).
     parser.add_argument("-out_dir", "--out_dir", type=str, default="./results")
+    # Optional argument for specifying a directory with segmentation masks. If not provided, segmentation isn't used (default is None).
     parser.add_argument("-seg_dir", "--seg_dir", type=str, default=None)
+    # Defines the configuration file to use for the experiment (default is ./configs/econ.yaml).
     parser.add_argument("-cfg", "--config", type=str, default="./configs/econ.yaml")
+    # Handle a batch of independent single-view images?
     parser.add_argument("-multi", action="store_false")
+    # A flag to suppress visualization. If included, it disables visual output during the inference process.
     parser.add_argument("-novis", action="store_true")
 
+    # The function parse_args() reads the command-line arguments that are passed when the script is executed. It matches those arguments to the ones you've defined.
     args = parser.parse_args()
 
     # cfg read and merge
