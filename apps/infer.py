@@ -82,8 +82,13 @@ if __name__ == "__main__":
     # The function parse_args() reads the command-line arguments that are passed when the script is executed. It matches those arguments to the ones you've defined.
     args = parser.parse_args()
 
-    # cfg read and merge
+    # Setting ECON run configurations such as:
+    # 1. Data input and output directories
+    # 2. GPU device index
+    # 3. Load in configs from econ.yaml that holds parameters and input definitions for models Gn,
+    # d-BiNI, SMPL inference, SAPIENS, 
     cfg.merge_from_file(args.config)
+    # Load in configs from pymafx_config.yaml for PYMAF, a model for pose estimation and SMPL-X alignment.
     cfg.merge_from_file("./lib/pymafx/configs/pymafx_config.yaml")
     device = torch.device(f"cuda:{args.gpu_device}")
 
