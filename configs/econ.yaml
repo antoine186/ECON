@@ -8,45 +8,88 @@ ifnet_path: "./data/ckpt/ifnet.ckpt"
 # Path where the results (output meshes, normal maps, etc.) will be saved.
 results_path: "./results"
 
+# Network Input Configuration.
 net:
+  # Configurations for Gn_front and Gn_back.
+  # image, T_normal_F, and T_normal_B all have 3 channels. (All are inputs).
+  # T_normal_F: Refers to the front naked body normal map derived from the SMPL-X body model.
   in_nml: (('image',3), ('T_normal_F',3), ('T_normal_B',3))
+  # Configurations for 2.5D surface reconstructions.
+  # normal_F and normal_B all have 3 channels.
+  # normal_F = Front clothed body normal map (predicted by the network). This is an input.
   in_geo: (('normal_F',3), ('normal_B',3))
 
+# Indicates the network is in test mode (inference), not training.
 test_mode: True
+# Sets the batch size for inference to 1, meaning one image is processed at a time.
 batch_size: 1
 
 dataset:
   prior_type: "SMPL"
 
+# Resolution of the 3D voxel grid used in the model, set to 256x256x256.
 vol_res: 256
+# Resolution for the marching cubes algorithm, which is used to extract the 3D surface from the voxel grid.
 mcube_res: 256
+# Whether or not to clean the final 3D mesh (removing artifacts like noise or disconnected parts).
 clean_mesh: True
+# If 50% or more of the clothing's surface is intersecting with the body mesh, the system will consider this an unacceptable overlap.
 cloth_overlap_thres: 0.50
+# The threshold for overlap between body parts. At 0.00, any overlap will be flagged.
 body_overlap_thres: 0.00
+# Forces optimization on the SMPL model during mesh generation, likely to improve alignment between the model and the input data.
+# Corresponds to the body refinement loop.
 force_smpl_optim: True
 
 
 # normal_model could be '1b' if CUDA OOM, see apps/sapiens.py
 
+# SAPIENS (Segmentation and Pose Inference)
+# A pre-processing step that segments the human figure from the image and assists with initial pose inference.
+
+# The initial pose and shape estimation for the SMPL-X model is done through PIXIE or PyMAF-X, which infer 
+# the naked body shape and pose from the RGB image. However, the segmentation and initial pose detection are not elaborated in detail.
+# This is probably where SAPIENS comes in as a pre-processing step to the SMPL pipeline.
 sapiens:
   use: True
+  # The segmentation model to use, likely for separating the foreground (human) from the background.
   seg_model: "fg-bg-1b"
+  # The model for normal map prediction.
   normal_model: "2b" 
 
 # For crowded / occluded scene
 # body_overlap_thres: 0.98
 
+# Bilateral Normal Integration (BNI) Settings
+
+
 bni:
+  # Controls the stiffness of the surface in the bilateral normal integration step. A higher value makes the surface more 
+  # flexible and prone to preserving high-frequency details.
   k: 4
+  # Regularization parameter for the normal integration process, controlling the trade-off between data fidelity and smoothness.
   lambda1: 1e-4
+  # Specifies a boundary consistency term to ensure the front and back normal maps align smoothly at the silhouette.
   boundary_consist: 1e-6
+  # Poisson surface reconstruction depth level, influencing the resolution of the final reconstructed mesh.
   poisson_depth: 10
+  # The hands are explicitly refined using SMPL.
   use_smpl: ["hand"]
+  # Indicates whether to use IF-Nets for shape completion. Set to False, meaning IF-Net-based completion is not used.
   use_ifnet: False
+  # Enables the use of Poisson surface reconstruction for mesh generation.
   use_poisson: True
+  # The hand_thres parameter controls how much overlap or misalignment is allowed between the SMPL-X body (naked body) 
+  # and the predicted clothing surface specifically in the hand region.
   hand_thres: 8e-2
+  # Same as hand_thres, but for the face.
   face_thres: 6e-2
+  # Specifies the thickness of the surface, influencing how tight or loose the clothing is fitted to the body model.
   thickness: 0.02
+  # The type of head pose system (HPS) used, here it is "pixie," which refers to a pose estimation model like PyMAF-X 
+  # (used for SMPL-X alignment).
   hps_type: "pixie"
+  # pecifies the source of texture information. Here, it uses the input image as the source of texture.
   texture_src: "image"
+  # If set to True, any intersections between surfaces (e.g., between body and clothing) will be cut out to prevent artifacts.
   cut_intersection: True
