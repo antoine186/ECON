@@ -207,6 +207,7 @@ class TestDataset:
     def render_normal(self, verts, faces):
 
         # render optimized mesh (normal, T_normal, image [-1,1])
+        # Load mesh into the pytorch3d renderer.
         self.render.load_meshes(verts, faces)
         return self.render.get_image(type="rgb")
 

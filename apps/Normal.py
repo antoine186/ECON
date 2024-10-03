@@ -10,15 +10,23 @@ from lib.net import NormalNet
 class Normal(pl.LightningModule):
     def __init__(self, cfg):
         super(Normal, self).__init__()
+        # Config mostly from econ.yaml.
         self.cfg = cfg
+        # batch_size = 1
         self.batch_size = self.cfg.batch_size
+        # Learning rate 0.001 for the front clothed normal map predictor.
         self.lr_F = self.cfg.lr_netF
+        # Learning rate 0.001 for the back clothed normal map predictor.
         self.lr_B = self.cfg.lr_netB
         self.lr_D = self.cfg.lr_netD
+        # overfit = False
         self.overfit = cfg.overfit
 
+        # No losses recorded.
         self.F_losses = [item[0] for item in self.cfg.net.front_losses]
+        # No losses recorded.
         self.B_losses = [item[0] for item in self.cfg.net.back_losses]
+        # No losses recorded.
         self.ALL_losses = self.F_losses + self.B_losses
 
         self.automatic_optimization = False

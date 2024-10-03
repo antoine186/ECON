@@ -47,14 +47,12 @@ from lib.common.voxelize import VoxelGrid
 from lib.dataset.mesh_util import *
 from lib.dataset.TestDataset import TestDataset
 from lib.net.geometry import rot6d_to_rotmat, rotation_matrix_to_angle_axis
-# import sys
 
 torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
 if __name__ == "__main__":
-    # sys.path.append('./ECON')
     os.chdir('./ECON')
 
     # loading cfg file
@@ -94,11 +92,19 @@ if __name__ == "__main__":
 
     # setting for testing on in-the-wild images
     cfg_show_list = [
+        # Setting which inference GPU to use.
+        # Resolution for the marching cubes algorithm, which is used to extract the 3D surface from the voxel grid.
+        # This is different from the 256 resolution in the econ.yaml file.
+        # Whether or not to clean the final 3D mesh (removing artifacts like noise or disconnected parts).
+        # Indicates the network is in test mode (inference), not training.
         "test_gpus", [args.gpu_device], "mcube_res", 512, "clean_mesh", True, "test_mode", True,
+        # Sets the batch size for inference to 1, meaning one image is processed at a time.
         "batch_size", 1
     ]
 
+    # Update the econ.yaml configs with cfg_show_list.
     cfg.merge_from_list(cfg_show_list)
+    # After this point, the configuration becomes immutable.
     cfg.freeze()
 
     # load normal model
@@ -220,6 +226,7 @@ if __name__ == "__main__":
                 sapiens_normal_square_lst.append(wrap(sapiens_normal, data["uncrop_param"], idx))
             sapiens_normal_square = torch.cat(sapiens_normal_square_lst)
 
+        # WE SKIP THIS!!!
         # remove this line if you change the loop_smpl and obtain different SMPL-X fits
         if osp.exists(smpl_path) and (not cfg.force_smpl_optim):
 
@@ -249,6 +256,7 @@ if __name__ == "__main__":
             in_tensor["smpl_verts"] = batch_smpl_verts * torch.tensor([1., -1., 1.]).to(device)
             in_tensor["smpl_faces"] = batch_smpl_faces[:, :, [0, 2, 1]]
 
+        # WE GO HERE!!!
         else:
             # smpl optimization
             loop_smpl = tqdm(range(args.loop_smpl))
@@ -294,8 +302,17 @@ if __name__ == "__main__":
                 smpl_lmks = smpl_joints_3d[:, SMPLX_object.ghum_smpl_pairs[:, 1], :2]
 
                 # render optimized mesh as normal [-1,1]
+                # T_normal_F: Refers to the front naked body normal map derived from the SMPL-X body model.
+                # T_normal_F and T_normal_B all have 3 channels.
+
+                # Load mesh into the pytorch3d renderer.
                 in_tensor["T_normal_F"], in_tensor["T_normal_B"] = dataset.render_normal(
+                    # Adjusts the SMPL-X vertices by multiplying them with the tensor [1.0, -1.0, -1.0]. The multiplication by -1.0 
+                    # on the Y-axis and Z-axis flips the orientation of the mesh in those dimensions. This might be necessary for 
+                    # rendering the correct orientation of the body in the coordinate system.
                     smpl_verts * torch.tensor([1.0, -1.0, -1.0]).to(device),
+                    # This refers to the faces of the SMPL-X mesh, which define the triangles that make up the surface of the 3D body. 
+                    # These are required for rendering the normals, as they define how the surface is connected.
                     in_tensor["smpl_faces"],
                 )
 
@@ -303,7 +320,16 @@ if __name__ == "__main__":
 
                 with torch.no_grad():
                     # [1, 3, 512, 512], (-1.0, 1.0)
+                    # netG is essentially the clothed normal map predictor.
+                    # "normal_F" stands for front clothed normal map!!!
+                    # "normal_F" and "normal_B" all have 3 channels.
                     in_tensor["normal_F"], in_tensor["normal_B"] = normal_net.netG(in_tensor)
+
+                    normal_F_image = (in_tensor["normal_F"].detach().cpu() + 1.0) * 0.5  # Normalize to [0, 1]
+                    normal_B_image = (in_tensor["normal_B"].detach().cpu() + 1.0) * 0.5  # Normalize to [0, 1]
+
+                    #torchvision.utils.save_image(normal_F_image, os.path.join("./", "normal_F.png"))
+                    #torchvision.utils.save_image(normal_B_image, os.path.join("./", "normal_B.png"))
 
                 # only replace the front cloth normals, and the back cloth normals will get improved accordingly
                 # as the back cloth normals are conditioned on the body cloth normals

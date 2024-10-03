@@ -22,7 +22,8 @@ from lib.net.BasePIFuNet import BasePIFuNet
 from lib.net.FBNet import GANLoss, IDMRFLoss, VGGLoss, define_D, define_G
 from lib.net.net_util import init_net
 
-
+# This is Gn_front and Gn_back.
+# Inputs are likely: RGB Image + SMPL Prior.
 class NormalNet(BasePIFuNet):
     """
     HG PIFu network uses Hourglass stacks as the image filter.
@@ -39,6 +40,38 @@ class NormalNet(BasePIFuNet):
 
         super(NormalNet, self).__init__()
 
+        # HGPIFuNet: (Hourglass PIFuNet) is used to predict the detailed surface normal maps for the clothed human.
+            # Inputs to HGPIFuNet: RGB Image + SMPL Prior.
+        # SDF: (Signed distance function) set to False.
+        # ResNet-18: ResNet-18 is used to extract features from the input image before predicting the normal maps.
+            # Differs from paper apparently where they use ResNet-50 for multi-person segmentation either before 
+            # normal map predictions or SMPL prior prediction.
+        # classifierIMF: 'MultiSegClassifier'.
+            # IMF stands for intermediate map feature?
+            # In the ECON pipeline, the network needs to be able to identify various regions of the human body and clothing.
+
+            # The classifier is designed to handle multiple segmentation tasks simultaneously. This would involve segmenting 
+            # different regions or aspects of the image, such as separating the body parts (e.g., head, arms, torso) or 
+            # different garment types (e.g., shirt, pants).
+        # Group normalisation: a normalisation technique applied to the intermediate layers of the network. This helps stabilize the training process.
+        # Group normalisation: applied in the MLP (Multi-Layer Perceptron) part of the network.
+            # The use of an MLP (Multi-Layer Perceptron) in predicting clothed normal maps is a common design choice in neural networks, 
+            # particularly for dense pixel-wise prediction tasks like normal map estimation.
+        # hg_down: 'ave_pool'.
+            # This indicates that average pooling is used as a down-sampling method in the Hourglass network. This pooling strategy may help retain 
+            # global information while reducing the spatial resolution, which is critical in hierarchical feature extraction.
+        # conv1: [7, 2, 1, 3].
+            # Parameters for the first convolutional layer: a 7x7 kernel, stride of 2, padding of 1, and 3 input channels (RGB image).
+        # conv3x3: [3, 1, 1, 1]. <- Intermediate hourglass C layer.
+            # Parameters for 3x3 convolutions: kernel size 3, stride 1, padding 1, and 1 input channel (likely for feature maps).
+        # num_stack: 4.
+            # Indicates the network uses 4 stacks of the Hourglass structure. Stacking multiple Hourglass networks is common for refining predictions 
+            # at multiple scales.
+        # num_hourglass: 2.
+            # Specifies 2 Hourglass modules are used in the network for refining predictions, potentially referring to the front and back normal maps 
+            # of the human body.
+        # hourglass_dim: 256.
+            # The dimension of the Hourglass feature map is set to 256, determining the depth of feature representation.
         self.opt = cfg.net
 
         self.F_losses = [item[0] for item in self.opt.front_losses]
