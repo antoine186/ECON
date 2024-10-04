@@ -18,6 +18,7 @@ class Normal(pl.LightningModule):
         self.lr_F = self.cfg.lr_netF
         # Learning rate 0.001 for the back clothed normal map predictor.
         self.lr_B = self.cfg.lr_netB
+        # Learning rate 0.001 for the discriminator, possibly used to QA output from Gn.
         self.lr_D = self.cfg.lr_netD
         # overfit = False
         self.overfit = cfg.overfit
@@ -40,6 +41,8 @@ class Normal(pl.LightningModule):
         # Inputs are likely: RGB Image + SMPL Prior.
         self.netG = NormalNet(self.cfg)
 
+        # Extracting and setting the inputs to Gn:
+        # ('image', 3), ('T_normal_F', 3), and ('T_normal_B', 3)
         self.in_nml = [item[0] for item in cfg.net.in_nml]
 
     # Training related

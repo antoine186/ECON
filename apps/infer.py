@@ -72,7 +72,8 @@ if __name__ == "__main__":
     parser.add_argument("-seg_dir", "--seg_dir", type=str, default=None)
     # Defines the configuration file to use for the experiment (default is ./configs/econ.yaml).
     parser.add_argument("-cfg", "--config", type=str, default="./configs/econ.yaml")
-    # Handle a batch of independent single-view images?
+    # Handle a batch of independent single-view images? OR Do we use multi-person segmentation? Probably the latter here
+    # there might be an error as multi = True is stored in dataset attribute 'single'.
     parser.add_argument("-multi", action="store_false")
     # A flag to suppress visualization. If included, it disables visual output during the inference process.
     parser.add_argument("-novis", action="store_true")
@@ -107,33 +108,46 @@ if __name__ == "__main__":
     # After this point, the configuration becomes immutable.
     cfg.freeze()
 
-    # load normal model
+    # Load Gn normal prediction network from checkpoint with corresponding discriminator.
     normal_net = Normal.load_from_checkpoint(
         cfg=cfg, checkpoint_path=cfg.normal_path, map_location=device, strict=False
     )
+    # Sending Gn and discriminator to the GPU.
     normal_net = normal_net.to(device)
+    # Puts the generator network (netG) into evaluation mode.
+
+    # Batch normalisation layers will stop updating their internal statistics (mean and variance), 
+    # and they will use the previously computed statistics from the training phase.
+
+    # Dropout layers will be turned off, meaning no units will be randomly dropped as they would 
+    # during training.
     normal_net.netG.eval()
     print(
         colored(
             f"Resume Normal Estimator from {Format.start} {cfg.normal_path} {Format.end}", "green"
         )
     )
-
+    
+    # cfg.sapiens.use = True so we use the SAPIENS model.
+    # The SAPIENS module is used for segmentation and pose inference, and its role is likely to assist in 
+    # processing the input image by separating the human subject from the background (foreground-background segmentation).
     if cfg.sapiens.use:
+        # Initialises a SAPIENS ImageProcessor, then sent to the GPU.
         sapiens_normal_net = ImageProcessor(device=device)
 
     # SMPLX object
     SMPLX_object = SMPLX()
 
     dataset_param = {
-        "image_dir": args.in_dir,
-        "seg_dir": args.seg_dir,
-        "use_seg": True,    # w/ or w/o segmentation
-        "hps_type": cfg.bni.hps_type,    # pymafx/pixie
-        "vol_res": cfg.vol_res,
-        "single": args.multi,
+        "image_dir": args.in_dir, # Directory for input data.
+        "seg_dir": args.seg_dir, # A directory to store segmentations? Not relevant because path is empty.
+        "use_seg": True, # We want to use segmentation.
+        "hps_type": cfg.bni.hps_type, # Set to PIXIE.
+        "vol_res": cfg.vol_res, # 3d volume resolution: 256
+        "single": args.multi, # Set multi-person segmentation to true.
     }
 
+    # SKIPPED!
     if cfg.bni.use_ifnet:
         # load IFGeo model
         ifnet = IFGeo.load_from_checkpoint(
@@ -144,13 +158,24 @@ if __name__ == "__main__":
 
         print(colored(f"Resume IF-Net+ from {Format.start} {cfg.ifnet_path} {Format.end}", "green"))
         print(colored(f"Complete with {Format.start} IF-Nets+ (Implicit) {Format.end}", "green"))
+    # We go here!
     else:
         print(colored(f"Complete with {Format.start} SMPL-X (Explicit) {Format.end}", "green"))
 
+    # Test input data for inference. We will use this to conduct the inference in this script.
+    # Sending the dataset to the GPU.
+
+    # Attributes:
+        # hps_type: 'pixie'
+        # image_dir: './examples'
+        # render: A colour renderer
+        # single: True <- Dealing with single input views? Allowing multi-person segmentation?
+        # 
     dataset = TestDataset(dataset_param, device)
 
     print(colored(f"Dataset Size: {len(dataset)}", "green"))
 
+    # Sets the progress bar and returns an iterator over the dataset.
     pbar = tqdm(dataset)
 
     for data in pbar:
