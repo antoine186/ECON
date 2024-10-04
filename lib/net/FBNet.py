@@ -45,6 +45,9 @@ def get_norm_layer(norm_type="instance"):
     if norm_type == "batch":
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True)
     elif norm_type == "instance":
+        # nn.InstanceNorm2d: A class in PyTorch that applies instance normalisation to a 4D input (i.e. batch_size, num_channels, height, width).
+        # affine: If set to True, the normalization layer will learn scale and shift parameters for each channel.
+            # Channels refer to the different feature maps or color channels in the input data.
         norm_layer = functools.partial(nn.InstanceNorm2d, affine=False)
     else:
         raise NotImplementedError("normalization layer [%s] is not found" % norm_type)
@@ -93,7 +96,9 @@ def define_G(
     # print(netG)
     if len(gpu_ids) > 0:
         assert torch.cuda.is_available()
+        # Move the model netG to a specific GPU for computation
         netG.cuda(gpu_ids[0])
+    # Applying the function weights_init() and using netG as the arguments.
     netG.apply(weights_init)
     return netG
 

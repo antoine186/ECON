@@ -40,10 +40,12 @@ class NormalNet(BasePIFuNet):
 
         super(NormalNet, self).__init__()
 
+        # This cfg.net configuration seems to carry parameters not just meant for NormalNet.
+
         # HGPIFuNet: (Hourglass PIFuNet) is used to predict the detailed surface normal maps for the clothed human.
             # Inputs to HGPIFuNet: RGB Image + SMPL Prior.
         # SDF: (Signed distance function) set to False.
-        # ResNet-18: ResNet-18 is used to extract features from the input image before predicting the normal maps.
+        # ResNet-18: ResNet-18 is used to extract features (multi-person segmentation) from the input image before predicting the normal maps.
             # Differs from paper apparently where they use ResNet-50 for multi-person segmentation either before 
             # normal map predictions or SMPL prior prediction.
         # classifierIMF: 'MultiSegClassifier'.
@@ -71,15 +73,85 @@ class NormalNet(BasePIFuNet):
             # Specifies 2 Hourglass modules are used in the network for refining predictions, potentially referring to the front and back normal maps 
             # of the human body.
         # hourglass_dim: 256.
-            # The dimension of the Hourglass feature map is set to 256, determining the depth of feature representation.
+            # The dimension of the Hourglass feature map is set to 256, probably determining the depth of feature representation as this is different 
+            # from the 128x128 or 512x512 resolution of PiFU image encodings.
+        # voxel_dim: 32
+            # Resolution of the voxel grid used in 3D reconstruction.
+            # Instead of randomly sampling points in space, the voxel grid can provide a structured set of points where the implicit function is queried.
+        # resnet_dim: 120
+            # The dimension is set to 120, probably determining the depth of feature representation.
+        # mlp_dim: [320, 1024, 512, 256, 128, 1]
+            # The dimension of the MLP layers. This is clearly an implicit function given the 1-dimensional output.
+        # mlp_dim_knn: [320, 1024, 512, 256, 128, 3]
+            # Don't know what this does as knn not mentioned in the ECON paper.
+        # mlp_dim_multiseg: [1088, 2048, 1024, 500]
+            # MLP used for multi-segmentation tasks. Not sure why this is needed? Does it clash with ResNet-18 that seems to do the same segmentation task? Or
+            # is it instead up or downstream from it?
+        # res_layers: [2, 3, 4]
+            # Specifies which layers of the ResNet backbone are used for extracting features.
+        # filter_dim: 256
+            # The dimension/number of feature filters used in the 3D processing network.
+            # Could be a setting used to extract Fp, the mesh-based local feature vectors.
+        # smpl_dim: 3
+            # The SMPL dimensionality used in the network (3D for position or normal vectors).
+        # cly_dim: 3
+            # Clothing features are set to 3 for 3D.
+        # soft_dim: 64
+            # Soft body deformation dimension, which might be used to handle soft garments.
+        # z_size: 200.0
+            # The size of the latent space used in the latent feature representation.
+        # N_freqs: 10
+            # Refers to the number of frequencies used in positional encoding.
+            # Positional encoding helps by transforming the input coordinates (e.g., 3D positions) into a higher-dimensional space, making it easier for the network 
+            # to learn high-frequency details.
+        # geo_w: 0.1
+            # Weight for the geometric consistency loss, likely ensuring that the predicted normals are geometrically consistent with the SMPL body mesh.
+        # norm_w: 0.1
+            # Weight for the normal loss, which ensures that the predicted normal maps are consistent with ground-truth normals.
+        # dc_w: 0.1
+            # Weight for the data consistency loss, likely ensuring consistency between predicted and ground-truth 3D representations.
+        # C_cat_to_G: False
+            # A flag that may refer to whether to concatenate additional features (e.g., color) into the generator's input.
+        # skip_hourglass: True
+            # Indicates whether to allow skip connections in the Hourglass network, which can help preserve spatial information across different scales.
+        # use_tanh: True
+            # Indicates that tanh activation is used, likely for the normal maps to normalize the output between -1 and 1.
+        # soft_onehot: True
+            # Soft one-hot encoding, which might be used for segmentation purposes.
+        # no_residual: True
+            # Disables residual connections in certain parts of the network.
+        # use_attention: False
+            # Specifies that attention mechanisms are not used in this network.
+        # prior_type: 'icon'
+            # Specifies that the network uses an ICON prior. Hopefully, this means that ECON uses the ICON body refinement loop.
+            # Otherwise, if it uses the ICON reconstruction as a prior, it probably clashes with the SMPL-X prior and thus makes
+            # things more confusing.
+        # smpl_feats: ['sdf', 'vis']
+            # Defines the features used from the SMPL model — SDF (Signed Distance Function) and visibility.
+            # This is confusing because while present in ICON, those functions are not explicitly mentioned in ECON.
+        # use_filter: True
+            # Indicates that some form of filtering is applied to the input data or the output predictions.
+        # use_cc: False
+            # Refers to whether color correction is used in the pipeline, which is set to False.
+        # use_PE: False
+            # Refers to whether positional encoding (PE) is used for the network's inputs. Set to False!
+        # use_IGR: False
+            # Indicates whether Implicit Geometric Regularization (IGR) is used. For instance, is SDF applied or not?
+        # use_gan: False
+            # Indicates that GAN (Generative Adversarial Networks) are not being used for this specific configuration.
+            # What's a GAN doing here? Very weird.
         self.opt = cfg.net
 
+        # There are no losses here.
+        # All are zero length lists.
         self.F_losses = [item[0] for item in self.opt.front_losses]
         self.B_losses = [item[0] for item in self.opt.back_losses]
         self.F_losses_ratio = [item[1] for item in self.opt.front_losses]
         self.B_losses_ratio = [item[1] for item in self.opt.back_losses]
         self.ALL_losses = self.F_losses + self.B_losses
 
+        # training = True.
+        # We skip all loss settings here.
         if self.training:
             if 'vgg' in self.ALL_losses:
                 self.vgg_loss = VGGLoss()
@@ -90,25 +162,50 @@ class NormalNet(BasePIFuNet):
             if 'l1' in self.ALL_losses:
                 self.l1_loss = nn.SmoothL1Loss()
 
+        # Specifies the input to Gn_front: "image" + "T_normal_F".
         self.in_nmlF = [
             item[0] for item in self.opt.in_nml if "_F" in item[0] or item[0] == "image"
         ]
+        # Specifies the input to Gn_front: "image" + "T_normal_B".
         self.in_nmlB = [
             item[0] for item in self.opt.in_nml if "_B" in item[0] or item[0] == "image"
         ]
+        # Input dimension is 6 because self.opt.in_nml = [('image', 3), ('T_normal_F', 3), ('T_normal_B', 3)]
+        # and we only want the input image channels and the front body normal map channels.
         self.in_nmlF_dim = sum([
             item[1] for item in self.opt.in_nml if "_F" in item[0] or item[0] == "image"
         ])
+        # Same thing for the back input dimension.
         self.in_nmlB_dim = sum([
             item[1] for item in self.opt.in_nml if "_B" in item[0] or item[0] == "image"
         ])
 
+        # Creates and shapes the global generator for the front and the back.
+        # Initialises netG's (i.e. the global generator) weights.
+
+        # Input order:
+            # Input number of channels: 6
+            # Output number of channels: 3
+            # Number of generator filters (or number of feature maps): 64
+            # Do we use global or local generator: We use global generator
+                # The GlobalGenerator focuses on producing a coarse global structure of the clothed normal map. It operates on the entire 
+                # image at a relatively lower resolution and is responsible for capturing and generating the overall shape, structure, 
+                # and global features of the image.
+                    # Coarse Features: It focuses on large-scale features and ensures the consistency of the image at a macro level 
+                    # (such as the overall shape of a person or object).
+            # The number of downsampling layers used in the GlobalGenerator network: 4
+            # The number of ResNet blocks to be used in the GlobalGenerator network: 9
+            # n_local_enhancers: 1, irrelevant as not used
+            # n_blocks_local: 3, irrelevant as not used
+            # Image generation normalisation type: Instance normalisation, which is often used in image generation tasks as it normalises each instance separately.
         self.netF = define_G(self.in_nmlF_dim, 3, 64, "global", 4, 9, 1, 3, "instance")
         self.netB = define_G(self.in_nmlB_dim, 3, 64, "global", 4, 9, 1, 3, "instance")
 
+        # SKIPPED
         if ('gan' in self.ALL_losses):
             self.netD = define_D(3, 64, 3, 'instance', False, 2, 'gan_feat' in self.ALL_losses)
 
+        # Initialise a network: 1. register CPU/GPU device (with multi-GPU support); 2. Initialise the network weights.
         init_net(self)
 
     def forward(self, in_tensor):

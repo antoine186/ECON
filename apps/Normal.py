@@ -29,10 +29,15 @@ class Normal(pl.LightningModule):
         # No losses recorded.
         self.ALL_losses = self.F_losses + self.B_losses
 
+        # Disables PyTorch Lightning's automatic optimisation, meaning that the user, 
+        # is responsible for manually performing the optimization steps (i.e., zeroing the gradients, 
+        # calculating the loss, performing backpropagation, and updating the weights).
         self.automatic_optimization = False
 
         self.schedulers = []
 
+        # This is Gn_front and Gn_back.
+        # Inputs are likely: RGB Image + SMPL Prior.
         self.netG = NormalNet(self.cfg)
 
         self.in_nml = [item[0] for item in cfg.net.in_nml]
