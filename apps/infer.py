@@ -382,8 +382,14 @@ if __name__ == "__main__":
                 # N_body = 1, N_pose = 21
                 N_body, N_pose = optimed_pose.shape[:2]
 
-                # 6d_rot to rot_mat
+                # 6d_rot to rot_mat: Converting a 6D rotation representation into a 3x3 rotation matrix, commonly used in 3D computer vision tasks to represent orientations.
+
+                # optimed_orient: This tensor holds the orientation parameters in 6D rotation format.
+                # optimed_orient represents the global orientation of the SMPL model, typically the rotation of the root joint (usually the pelvis). 
                 # optimed_orient.shape = [1, 1, 6]
+                # optimed_orient.view(-1, 6).shape = [1, 6]
+                # rot6d_to_rotmat(optimed_orient.view(-1, 6)).shape = [1, 3, 3]
+                # rot6d_to_rotmat(optimed_orient.view(-1, 6)).view(N_body, 1, 3, 3).shape = [1, 1, 3, 3]
                 optimed_orient_mat = rot6d_to_rotmat(optimed_orient.view(-1,
                                                                          6)).view(N_body, 1, 3, 3)
                 optimed_pose_mat = rot6d_to_rotmat(optimed_pose.view(-1,
