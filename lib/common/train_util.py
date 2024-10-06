@@ -26,27 +26,38 @@ class Format:
     end = '\033[0m'
     start = '\033[4m'
 
-
+# Initializes a dictionary of different loss functions used during the optimization of a model. Each loss type has a specific weight and value that contribute to the overall objective function.
 def init_loss():
 
     losses = {
     # Cloth: chamfer distance
+    # 1e3 means this loss has a significant influence (high weight) on the overall optimization.
+    # Value: Initially set to 0.0, this will accumulate the actual computed loss during training.
         "cloth": {"weight": 1e3, "value": 0.0},
-    # Stiffness: [RT]_v1 - [RT]_v2 (v1-edge-v2)
+    # Stiffness: This loss penalizes the difference between rotation transformations of connected vertices, keeping the cloth stiffness intact. It's often used to maintain the rigidity of edges in a mesh.
+    # 1e5 gives this loss a very high influence, emphasizing cloth stiffness during the optimization.
         "stiff": {"weight": 1e5, "value": 0.0},
     # Cloth: det(R) = 1
+    # Rigid: Ensures that the rotation matrix R applied to the cloth has a determinant of 1, which means it preserves volume and avoids deformation.
+    # 1e5, giving this constraint a high priority in the optimization process.
         "rigid": {"weight": 1e5, "value": 0.0},
     # Cloth: edge length
+    # Loss is disabled.
         "edge": {"weight": 0, "value": 0.0},
     # Cloth: normal consistency
+    # Loss is disabled.
         "nc": {"weight": 0, "value": 0.0},
     # Cloth: laplacian smoonth
+    # Laplacian Smoothness (lapla): This loss smooths the cloth mesh by penalizing differences between a vertex and the average of its neighboring vertices.
+    # 1e2, giving it moderate influence, which helps smooth the mesh while retaining other properties.
         "lapla": {"weight": 1e2, "value": 0.0},
     # Body: Normal_pred - Normal_smpl
         "normal": {"weight": 1e0, "value": 0.0},
     # Body: Silhouette_pred - Silhouette_smpl
+    # Naming not consistent with paper. It corresponds to depth loss Ld.
         "silhouette": {"weight": 1e0, "value": 0.0},
     # Joint: reprojected joints difference
+    # This is LJ_diff.
         "joint": {"weight": 1e0, "value": 0.0},
     }
 

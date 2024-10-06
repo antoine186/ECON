@@ -170,7 +170,25 @@ if __name__ == "__main__":
         # image_dir: './examples'
         # render: A colour renderer
         # single: True <- Dealing with single input views? Allowing multi-person segmentation?
-        # 
+        # smpl_data: <- This contains data for the SMPL and SMPL-X base models.
+            # cmap_vert_path: Path to a file containing a colormap for vertices (probably to map UV coordinates or texture).
+                # UV coordinates are a way to map a 2D texture (image) onto a 3D model. They define how textures wrap around the surface of a 3D object.
+            # model_dir: Directory where the SMPL models (e.g., body mesh files) are stored.
+            # smpl_faces_path, smpl_verts_path: Paths to NumPy arrays storing faces and vertices of the 3D model. These are the building blocks of the mesh.
+            # smplx_to_smplx_path: Path to a file that contains mapping data from SMPL-X to SMPL. SMPL and SMPL-X are two different models with different numbers of vertices.
+            # smpl_verts, smplx_verts: 3D vertex positions of the SMPL and SMPL-X models in the format (x, y, z) coordinates.
+            # smpl_faces, smplx_faces: Arrays that define the triangular faces of the mesh by specifying which vertices form each triangle.
+            # smpl_vert_seg, smplx_vert_seg: Dictionaries that map various body parts (e.g., leftLeg, spine) to vertex indices on the 3D mesh. These segment the mesh into meaningful anatomical regions.
+            # smpl_joint_ids_24, smpl_joint_ids_45: Lists of joint indices for the SMPL model (either 24 or 45 joints). These are used to define the skeleton structure of the body.
+            # smpl_joint_ids_45_pixie: A similar list, but this includes extra joints used by Pixie, another human body model.
+            # extra_joint_ids: Additional joint IDs, likely corresponding to hands or facial joints.
+            # ghum_smpl_pairs: A tensor mapping joints between GHUM (a different human body model) and SMPL. This would be used for aligning data between models. GHUM not mentioned in the paper.
+            # eyeball_vertex_mask, smpl_mano_vertex_mask, smplx_eyeball_fid_mask: Tensors that represent masks to isolate or exclude certain vertices (e.g., to separate the eyes or hands).
+            # front_flame_vertex_mask: A mask specific to FLAME, which is a head model for SMPL-X. Probably to isolate the head.
+            # smpl_vert_seg, smplx_vert_seg: Segmentations of vertices for different body parts (e.g., hands, legs, torso).
+            # smplx_vertex_lmkid: Array containing landmark IDs for SMPL-X vertices. These represent key landmarks like the nose tip or other facial/body key points.
+            # smplx_to_smpl: Data that maps vertices between SMPL-X and SMPL, including information about closest points on the mesh, valid vertices, and the mapping between the two models.
+            # smpl_joint_ids_24_pixie, smpl_joint_ids_45_pixie: Joint IDs used by Pixie, which likely has a different definition for joint positions or additional joints compared to the original SMPL model.
     dataset = TestDataset(dataset_param, device)
 
     print(colored(f"Dataset Size: {len(dataset)}", "green"))
@@ -179,7 +197,8 @@ if __name__ == "__main__":
     pbar = tqdm(dataset)
 
     for data in pbar:
-
+        
+        # # Initializes a dictionary of different loss functions used during the optimization of a model. Each loss type has a specific weight and value that contribute to the overall objective function.
         losses = init_loss()
 
         pbar.set_description(f"{data['name']}")
@@ -190,6 +209,7 @@ if __name__ == "__main__":
         # 3. Blend the original image with predicted cloth normal (xxx_overlap.png)
         # 4. Blend the cropped image with predicted cloth normal (xxx_crop.png)
 
+        # Ensuring some result images are sent to ./results/econ/png
         os.makedirs(osp.join(args.out_dir, cfg.name, "png"), exist_ok=True)
 
         # final reconstruction meshes (OBJ)
@@ -201,24 +221,61 @@ if __name__ == "__main__":
         # 6. sideded or occluded parts (xxx_side.obj)
         # 7. final reconstructed clothed human (xxx_full.obj)
 
+        # Ensuring some result images are sent to ./results/econ/obj
         os.makedirs(osp.join(args.out_dir, cfg.name, "obj"), exist_ok=True)
 
+        # Creates a dictionary called in_tensor and assigns specific data elements to it. Sends it to the GPU.
+
+        # smpl_faces: Refers to the SMPL model's face topology, which describes how the vertices of the SMPL model are connected to form triangles.
+        # data["smpl_faces"].shape = [1, 20908, 3] <- 1 smpl body starting point, 20908 faces (triangles) in the SMPL model, and 3 vertex indices that define each face.
+
+        # image: This likely refers to the input image that the model will use to make predictions, such as an image of a person that will be processed to predict normal maps or other features.
+        # data["img_icon"].shape = [1, 3, 512, 512] <- Input image with 3 channels.
+
+        # mask: This is the binary mask associated with the input image, which likely indicates the foreground (e.g., person) and background.
+        # data["img_mask"].shape = [1, 512, 512]
         in_tensor = {
             "smpl_faces": data["smpl_faces"], "image": data["img_icon"].to(device), "mask":
             data["img_mask"].to(device)
         }
 
         # The optimizer and variables
+
+        # requires_grad_(True) = setting SMPL body parameters to require gradients. It means those are now part of the computation graph
+        # and thus is part of the backpropagation chain.
+
+        # data["body_pose"]: This refers to the body joint rotations of the SMPL model, typically represented in axis-angle format or rotation matrices. 
+        # The "body pose" describes the local orientations of all joints except the root (global orientation).
+        # data["body_pose"].shape = [1, 21, 6] <- Apparently there are only 21 joints? Weird, thought SMPL was at least 24... 
+            # The 6D rotation representation is an alternative to quaternions or axis-angle for representing 3D rotations.
         optimed_pose = data["body_pose"].requires_grad_(True)
+        # data["trans"]: This refers to the global translation (position) of the SMPL model in the 3D world space. It defines where the body is located relative to the origin.
+        # data["trans"].shape = [1, 1, 3]
         optimed_trans = data["trans"].requires_grad_(True)
+        # data["betas"]: This refers to the shape parameters (often called "betas") of the SMPL model. These parameters control the body shape (e.g., tall, muscular, thin) 
+        # by adjusting a low-dimensional space that influences the body mesh's vertices.
+        # data["betas"].shape = [1, 200] <- 200 is the number of betas.
         optimed_betas = data["betas"].requires_grad_(True)
+        # data["global_orient"]: This represents the global orientation of the SMPL model, typically the rotation of the root joint (usually the pelvis). 
+        # It defines the overall direction the body is facing.
+        # data["global_orient"].shape = [1, 1, 6] <- There is only one joint to orient.
         optimed_orient = data["global_orient"].requires_grad_(True)
 
+        # Adam optimizer in PyTorch, which is responsible for optimizing the SMPL model parameters.
+
+        # AMSGrad variant of the Adam optimizer, which modifies the step size adaptation to ensure convergence in some cases where regular Adam might fail.
         optimizer_smpl = torch.optim.Adam([
             optimed_pose, optimed_trans, optimed_betas, optimed_orient
         ],
                                           lr=1e-2,
                                           amsgrad=True)
+        
+        # Learning rate scheduler in PyTorch, specifically using the ReduceLROnPlateau strategy.
+        # The scheduler monitors a specific metric and reduces the learning rate of optimizer_smpl if that metric doesn't improve.
+
+        # mode="min": Reduce the learning rate when the monitored value (e.g., loss) stops decreasing.
+        # factor=0.5: When the scheduler reduces the learning rate, it will multiply the current learning rate by 0.5 (cutting it in half).
+        # patience=5: This specifies the number of epochs (or steps) with no improvement after which the learning rate will be reduced.
         scheduler_smpl = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer_smpl,
             mode="min",
@@ -228,15 +285,18 @@ if __name__ == "__main__":
             patience=args.patience,
         )
 
-        # [result_loop_1, result_loop_2, ...]
+        # [result_loop_1, result_loop_2, ...] <- List to store the results of this loop.
         per_data_lst = []
 
+        # N_body = 1
+        # N_pose = 21 <- number of joints
         N_body, N_pose = optimed_pose.shape[:2]
 
+        # smpl_path = './results/econ/obj/304e9c4798a8c3967de7c74c24ef2e38_smpl_00.obj'
         smpl_path = f"{args.out_dir}/{cfg.name}/obj/{data['name']}_smpl_00.obj"
 
         # sapiens inference for current batch data
-
+        # cfg.sapiens.use = True
         if cfg.sapiens.use:
             
             sapiens_normal = sapiens_normal_net.process_image(
