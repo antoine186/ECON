@@ -230,7 +230,7 @@ if __name__ == "__main__":
         # data["smpl_faces"].shape = [1, 20908, 3] <- 1 smpl body starting point, 20908 faces (triangles) in the SMPL model, and 3 vertex indices that define each face.
 
         # image: This likely refers to the input image that the model will use to make predictions, such as an image of a person that will be processed to predict normal maps or other features.
-        # data["img_icon"].shape = [1, 3, 512, 512] <- Input image with 3 channels.
+        # data["img_icon"].shape = [1, 3, 512, 512] <- Downsized input image with 3 channels.
 
         # mask: This is the binary mask associated with the input image, which likely indicates the foreground (e.g., person) and background.
         # data["img_mask"].shape = [1, 512, 512]
@@ -298,16 +298,35 @@ if __name__ == "__main__":
         # sapiens inference for current batch data
         # cfg.sapiens.use = True
         if cfg.sapiens.use:
+
+            # SAPIENS estimated normal map.
             
+            # The SAPIENS module is used for segmentation and pose inference, and its role is likely to assist in 
+            # processing the input image by separating the human subject from the background (foreground-background segmentation).
+            # sapiens_normal.shape = [1, 3, 1103, 736]
             sapiens_normal = sapiens_normal_net.process_image(
                 Image.fromarray(
+                    # data["img_raw"].shape = [1, 3, 1103, 736] <- Original image without downsizing.
+                    # data["img_raw"].squeeze(0).shape = [3, 1103, 736]
+                    # data["img_raw"].squeeze(0).permute(1, 2, 0).shape = [1103, 736, 3]
+
+                    # .astype(np.uint8): Converts the PyTorch tensor into a NumPy array and casts the pixel values to 8-bit unsigned integers (np.uint8). 
+                    # This ensures that the pixel values range between 0 and 255, which is a typical format for image processing.
                     data["img_raw"].squeeze(0).permute(1, 2, 0).numpy().astype(np.uint8)
+                    # fg.sapiens.normal_model = 2b
+                    # cfg.sapiens.seg_model = fg-bg-1b
                 ), cfg.sapiens.normal_model, cfg.sapiens.seg_model
             )
             print(colored("Estimating normal maps from input image, using Sapiens-normal", "green"))
 
             sapiens_normal_square_lst = []
+
+            # Loops through each image in data["img_icon"].
             for idx in range(len(data["img_icon"])):
+                # data["uncrop_param"] = {ori_shape, box_shape, square_shape, M_square, M_crop} <- Parameters
+                # idx: An index specifying which specific uncropping transformation to apply from the uncrop parameters.
+
+                # The wrap function is performing a two-step affine transformation (geometric transformation) on an image to uncrop it.
                 sapiens_normal_square_lst.append(wrap(sapiens_normal, data["uncrop_param"], idx))
             sapiens_normal_square = torch.cat(sapiens_normal_square_lst)
 
