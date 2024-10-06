@@ -319,6 +319,7 @@ if __name__ == "__main__":
             )
             print(colored("Estimating normal maps from input image, using Sapiens-normal", "green"))
 
+            # sapiens_normal_square_lst contains wrapped tensors for each image.
             sapiens_normal_square_lst = []
 
             # Loops through each image in data["img_icon"].
@@ -327,7 +328,10 @@ if __name__ == "__main__":
                 # idx: An index specifying which specific uncropping transformation to apply from the uncrop parameters.
 
                 # The wrap function is performing a two-step affine transformation (geometric transformation) on an image to uncrop it.
+                # wrap() returns a result of shape [1, 3, 512, 512]. Input is sized [1, 3, 1103, 736].
                 sapiens_normal_square_lst.append(wrap(sapiens_normal, data["uncrop_param"], idx))
+            
+            # No effect as there is only one image. torch.cat concatenates tensors along a specified dimension creating a single tensor.
             sapiens_normal_square = torch.cat(sapiens_normal_square_lst)
 
         # WE SKIP THIS!!!
@@ -368,12 +372,18 @@ if __name__ == "__main__":
             for i in loop_smpl:
 
                 per_loop_lst = []
-
+                
+                # Zero out the parameter gradients because gradients are accumulated when we call
+	            # backward(). The accumulation is useful when we wish to calculate the gradient summed
+                # over multiple training passes. If not zeroed out, then the backpropagation will be applied 
+                # incorrectly.
                 optimizer_smpl.zero_grad()
 
+                # N_body = 1, N_pose = 21
                 N_body, N_pose = optimed_pose.shape[:2]
 
                 # 6d_rot to rot_mat
+                # optimed_orient.shape = [1, 1, 6]
                 optimed_orient_mat = rot6d_to_rotmat(optimed_orient.view(-1,
                                                                          6)).view(N_body, 1, 3, 3)
                 optimed_pose_mat = rot6d_to_rotmat(optimed_pose.view(-1,

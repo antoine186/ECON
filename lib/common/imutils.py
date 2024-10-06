@@ -363,24 +363,36 @@ def unwrap(image, uncrop_param, idx):
 
 def wrap(image, uncrop_param, idx):
 
+    # image.shape = [1, 3, 1103, 736]
     device = image.device
 
+    # img_square.shape = [1, 3, 1024, 1024]
     img_square = warp_affine(
         image,
+        # uncrop_param["M_square"] is the transformation matrix for the first affine transformation, typically for reshaping the image into a square
+        # uncrop_param["M_square"].shape = [1, 3, 3]
+        # uncrop_param["M_square"][:, :2].shape = [1, 2, 3]
         uncrop_param["M_square"][:, :2].to(device),
+        # uncrop_param["square_shape"] = [1024, 1024]
         uncrop_param["square_shape"],
+        # Bilinear interpolation, a smoother form of resizing.
         mode='bilinear',
+        # Pads any pixels that go out of bounds with zeros (black).
         padding_mode='zeros',
         align_corners=True
     )
 
     img_crop = warp_affine(
         img_square,
+        # uncrop_param["M_crop"].shape = [1, 3, 3]
+        # uncrop_param["M_crop"][idx:idx + 1, :2].shape = [1, 2, 3]
         uncrop_param["M_crop"][idx:idx + 1, :2].to(device),
+        # uncrop_param["box_shape"] = [512, 512]
         uncrop_param["box_shape"],
         mode='bilinear',
         padding_mode='zeros',
         align_corners=True
     )
 
+    # img_crop.shape = [1, 3, 512, 512]
     return img_crop
